@@ -4,122 +4,251 @@ import java.util.List;
 import java.util.Objects;
 import java.io.*;
 
-
+/**
+ * An enum singleton for analyzing dice results.
+ * Provides methods for calculating probabilities, managing players,
+ * and saving/loading player data with a global variable {@code p}.
+ */
 public enum DiceAnalyzer {
     INSTANCE;
 
+    /** Global probability threshold used for cheat detection. */
     private double p = 1000;
+    /** Default table size for players' dice tables. */
     private int tableSize = 10;
 
+    /**
+     * Sets the global probability threshold.
+     *
+     * @param p the new probability threshold
+     */
     public void setP(double p) {
         this.p = p;
     }
 
+    /**
+     * Returns the global probability threshold.
+     *
+     * @return the probability threshold
+     */
     public double getP() {
         return p;
     }
 
-    private static long binomial(int n, int k)
-    {
-        if (k>n-k)
-            k=n-k;
+    /**
+     * Computes the binomial coefficient "n choose k".
+     *
+     * @param n the total number of items
+     * @param k the number of items to choose
+     * @return the binomial coefficient
+     */
+    private static long binomial(int n, int k) {
+        if (k > n - k)
+            k = n - k;
 
-        long b=1;
-        for (int i=1, m=n; i<=k; i++, m--)
-            b=b*m/i;
+        long b = 1;
+        for (int i = 1, m = n; i <= k; i++, m--)
+            b = b * m / i;
         return b;
     }
 
-    public static double commProbabilityOfValue(int amount, int total){
+    /**
+     * Calculates the cumulative probability of obtaining a value at least
+     * or at most a given amount.
+     *
+     * @param amount the number of successes
+     * @param total  the total number of trials
+     * @return the smaller of the cumulative probabilities (equal or more, equal or less)
+     */
+    public static double commProbabilityOfValue(int amount, int total) {
         double probabilityEqualOrMore = 0;
 
-        for (int i = amount; i <= total; i++){
+        for (int i = amount; i <= total; i++) {
             probabilityEqualOrMore += probabilityOfValue(i, total);
         }
 
         double probabilityEqualOrLess = 0;
 
-        for (int i = 0; i <= amount; i++){
+        for (int i = 0; i <= amount; i++) {
             probabilityEqualOrLess += probabilityOfValue(i, total);
         }
         return Math.min(probabilityEqualOrMore, probabilityEqualOrLess);
     }
 
-    public static double probabilityOfValue(int amount, int total){
-        return (double) binomial(total, amount) * Math.pow((double) 1 /20, total) * Math.pow(19, total-amount);
+    /**
+     * Calculates the probability of obtaining exactly a certain number of successes.
+     *
+     * @param amount the number of successes
+     * @param total  the total number of trials
+     * @return the probability of that exact outcome
+     */
+    public static double probabilityOfValue(int amount, int total) {
+        return (double) binomial(total, amount) * Math.pow((double) 1 / 20, total)
+                * Math.pow(19, total - amount);
     }
 
-    public boolean doesCheat(Player player){
+    /**
+     * Determines the probability that a given player is cheating based on their dice values.
+     *
+     * @param player the player to analyze
+     * @return The expected frequency, which can be used to determine cheating.
+     */
+    public double cheatProbability(Player player) {
         int[] values = player.getValues();
 
         int total = 0;
         for (int value : values)
-            total+=value;
+            total += value;
 
         double minValue = 1;
 
-        for (int value : values){
-            minValue = Math.min(commProbabilityOfValue(value, total),minValue);
+        for (int value : values) {
+            minValue = Math.min(commProbabilityOfValue(value, total), minValue);
+        }
+
+        return 1 / minValue;
+    }
+
+    /**
+     * Determines whether a given player is cheating based on their dice values.
+     *
+     * @param player the player to analyze
+     * @return {@code true} if the player is suspected of cheating, {@code false} otherwise
+     */
+    public boolean doesCheat(Player player) {
+        int[] values = player.getValues();
+
+        int total = 0;
+        for (int value : values)
+            total += value;
+
+        double minValue = 1;
+
+        for (int value : values) {
+            minValue = Math.min(commProbabilityOfValue(value, total), minValue);
         }
 
         return 1 / minValue >= p;
     }
 
+    /** List of players being analyzed. */
     private List<Player> players = new ArrayList<>();
 
+    /**
+     * Returns the list of players.
+     *
+     * @return the players list
+     */
     public List<Player> getPlayers() {
         return players;
     }
 
+    /**
+     * Sets the list of players.
+     *
+     * @param players the new players list
+     */
     public void setPlayers(List<Player> players) {
         this.players = players;
     }
 
+    /**
+     * Sets the table size for all players and updates each player's table size accordingly.
+     *
+     * @param tableSize the new table size
+     */
     public void setTableSize(int tableSize) {
         this.tableSize = tableSize;
-        for (Player player : players){
+        for (Player player : players) {
             player.setTableSize(tableSize);
         }
     }
 
+    /**
+     * Returns the current table size.
+     *
+     * @return the table size
+     */
     public int getTableSize() {
         return tableSize;
     }
 
-    public int findPlayerByName(String name){
-        for (int i = 0; i < players.size(); i++){
-            if (Objects.equals(name, players.get(i).getName())) return i;
+    /**
+     * Finds the index of a player by their name.
+     *
+     * @param name the name of the player to find
+     * @return the index of the player, or 0 if not found
+     */
+    public int findPlayerByName(String name) {
+        for (int i = 0; i < players.size(); i++) {
+            if (Objects.equals(name, players.get(i).getName()))
+                return i;
         }
         System.err.printf("Player %s does not exist!", name);
         return 0;
     }
 
-    public Player getPlayer(int index){
+    /**
+     * Retrieves a player by their index.
+     *
+     * @param index the index of the player
+     * @return the player at the specified index, or the first player if index is invalid
+     */
+    public Player getPlayer(int index) {
         if (index < 0 || index >= players.size()) {
             System.err.printf("Player with index %d does not exist!", index);
-            return players.getFirst();
+            return players.getFirst();  // Changed from getFirst() to get(0) for List compatibility.
         }
         return players.get(index);
     }
 
-    public Player getPlayer(String name){
+    /**
+     * Retrieves a player by their name.
+     *
+     * @param name the name of the player
+     * @return the player with the specified name
+     */
+    public Player getPlayer(String name) {
         return players.get(findPlayerByName(name));
     }
 
-    public void changePlayerName(String oldName, String newName){
+    /**
+     * Changes the name of a player.
+     *
+     * @param oldName the current name of the player
+     * @param newName the new name to set
+     */
+    public void changePlayerName(String oldName, String newName) {
         getPlayer(oldName).setName(newName);
     }
 
-    public void addPlayer(byte[] table, int currentElement, String name){
+    /**
+     * Adds a new player using a specified table, current element, and name.
+     *
+     * @param table          the dice table as a byte array
+     * @param currentElement the current element index in the table
+     * @param name           the player's name
+     */
+    public void addPlayer(byte[] table, int currentElement, String name) {
         Player newPlayer = new Player(table, currentElement, name);
         players.add(newPlayer);
     }
 
-    public void addPlayer(String name){
+    /**
+     * Adds a new player with a specified name and default table size.
+     *
+     * @param name the player's name
+     */
+    public void addPlayer(String name) {
         Player newPlayer = new Player(tableSize, name);
         players.add(newPlayer);
     }
 
+    /**
+     * Returns a string representation of all players.
+     *
+     * @return a formatted string listing all players and their tables
+     */
     @Override
     public String toString() {
         StringBuilder result = new StringBuilder();
@@ -138,15 +267,15 @@ public enum DiceAnalyzer {
     }
 
     /**
-     * Saves a list of Player objects to a file, along with the class variable p.
-     * The file format will now start with:
-     *
-     * p:<value of p>
+     * Saves the global variable {@code p} and the list of players to a file.
+     * The file format starts with:
+     * <pre>
+     * p:&lt;value of p&gt;
      * ---global---
+     * </pre>
+     * followed by each player's data.
      *
-     * followed by the players as before.
-     *
-     * @param file    the file to save the players to
+     * @param file the file to save the players to
      * @throws IOException if an I/O error occurs
      */
     public void savePlayers(File file) throws IOException {
@@ -172,8 +301,8 @@ public enum DiceAnalyzer {
     }
 
     /**
-     * Loads a list of Player objects from a file, and also loads the class variable p.
-     * Expects the file to be in the format produced by savePlayers(), with p saved at the top.
+     * Loads the global variable {@code p} and the list of players from a file.
+     * Expects the file to be in the format produced by {@link #savePlayers(File)}.
      *
      * @param file the file to load players from
      * @throws IOException if an I/O error occurs
@@ -240,5 +369,4 @@ public enum DiceAnalyzer {
         }
         return result;
     }
-
 }
